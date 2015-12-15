@@ -5,6 +5,9 @@ require 'fileutils'
 require 'digest'
 require 'tempfile'
 require 'open-uri'
+require 'base64'
+require 'nokogiri'
+require 'net/http'
 
 File.umask(0022)
 
@@ -17,48 +20,44 @@ $dirs = ['/data/Movies','/data/TV Shows']
 $ignored = /.*TS_Dreambox.*/
 $lockfile = '/home/debian-transmission/.napiser.lock'
 
+
+####
+# Napiprojekt checksums, etc.
 def sum(file)
   if File.file?(file)
     content = open(file, 'r') { |io| io.read(10485760) }
     Digest::MD5.hexdigest(content)
   else
     nil
-  end 
+  end
 end
 
 def get_framerate(file,path)
-  return $1 if `/usr/bin/ffmpeg -stats -i "#{path}" 2>&1 | grep Video` =~ /.*?([\d+\.]+)\s+fps.*/
+  $1 if `/usr/bin/ffmpeg -stats -i "#{path}" 2>&1 | grep Video` =~ /.*?([\d+\.]+)\s+fps.*/
 end
 
-def f_digest(md5sum)
-
-  idx = [0xe, 0x3, 0x6, 0x8, 0x2]
-  mul = [2, 2, 5, 4, 3]
-  add = [0x0, 0xd, 0x10, 0xb, 0x5]
-
-  idx.map.with_index do |i, j|
-    t = add[j] + md5sum[i].to_i(16)
-    v = md5sum[t, 2].to_i(16)
-
-    ((v * mul[j]) % 16).to_s(16)
-  end.join ''
+def mode
+  '1'
 end
 
-def user
-  ''
+def client
+  'pynapi'
 end
 
-def pass
-  ''
+def client_ver
+  '0'
+end
+
+def txt
+  '1'
 end
 
 def lang
   'PL'
 end
 
-def ver
-  'pynapi'
-end
+####
+# SRT related logic
 
 def srt?(file)
   if File.file?(file)
@@ -69,7 +68,7 @@ def srt?(file)
           srt = true
         end
       end
-      return srt
+      srt
     rescue Exception => e
       puts e
     end
@@ -83,13 +82,16 @@ def to_srt(file,path)
   if $?.to_i == 0
     FileUtils.mv(tmp.path,file)
     File.chmod(0644,file)
-    return true
+    true
   else
     File.unlink(file)
     tmp.unlink
-    return nil
+    nil
   end
 end
+
+####
+# Recoding stuff
 
 def recode_file(file)
   string = File.read(file)
@@ -97,100 +99,88 @@ def recode_file(file)
   if ! string.nil?
     File.write(file,string)
   else
-    return nil
+    nil
   end
 end
 
 def recode_string(string)
-  string.force_encoding(Encoding::CP1250).encode!(Encoding::UTF_8)
-rescue
-  return nil
+  string.encode!(Encoding::UTF_8,Encoding::CP1250, :invalid => :replace, :replace => "")
 end
 
-def recode(path)
-  p = output_file(path)
-  result = File.read(p)
-  begin
-    result.force_encoding(Encoding::CP1250).encode!(Encoding::UTF_8)
-    File.write(p,result)
-    if srt?(p)
-      return true
-    else
-      File.unlink(p)
-      return nil
-    end
-  rescue
-    File.unlink(p)
-    return nil
-  end
-end
+def get_napi_subtitles(sum,file,videofile)
+  params = {
+    'downloaded_subtitles_id'   => sum,
+    'mode'                      => mode,
+    'client'                    => client,
+    'client_ver'                => client_ver,
+    'downloaded_subtitles_lang' => lang,
+    'downloaded_subtitles_txt'  => txt,
+  }
 
-def get_napi_subtitles(hash,sum,file,videofile)
-  url = "http://napiprojekt.pl/unit_napisy/dl.php?l=#{lang}&f=#{sum}&t=#{hash}&v=#{ver}&kolejka=false&nick=#{user}&pass=#{pass}&napios=posix"
-  result = open(url, 'r') { |io| io.read }
-  if result.start_with? 'NPc'
-    return nil
-  elsif result.start_with? 'Przerwa techniczna'
-    return nil
-  else
+  url = URI.parse('http://napiprojekt.pl/api/api-napiprojekt3.php')
+  response = Net::HTTP.post_form(url, params)
+  if response.code == '200' && ! response.body.nil?
     begin
-      #output = result
-      output = recode_string(result)
-      File.write(file, output, :mode => 'w')
-      return nil if File.size(file) <= 40
-      if ! srt?(file)
-        print "Found but SRT convertion needed..."
-        if to_srt(file,videofile).nil?
-          print 'Failed'
-          return nil
+      xml = Nokogiri::XML(response.body)
+      if xml.at_xpath('//status').content =~ /success/
+        sub = Base64.decode64(xml.at_xpath('//content').content)
+        nil if sub.size < 40
+        File.write(file, sub, :mode => 'w')
+        if ! srt?(file)
+          if to_srt(file,videofile).nil?
+            print 'Failed'
+            nil
+          end
         end
+        true
+      else
+        nil
       end
-      true
-    rescue
+    rescue Exception => e
       nil
     end
+  else
+    nil
   end
 end
 
 def output_file(file)
   filename  = File.basename(file,".*")
-  return File.join( File.dirname(file), "#{filename}.pl.srt" )
+  File.join( File.dirname(file), "#{filename}.pl.srt" )
 end
 
 def fetch_polish(path,lang)
   begin
     md5 = sum(path)
     if ! md5.nil?
-      r = get_napi_subtitles(f_digest(md5),md5,output_file(path),path)
+      r = get_napi_subtitles(md5,output_file(path),path)
       if r.nil?
-        return nil
+        nil
       else
-        return true
+        true
       end
     else
-      return nil
+      nil
     end
   rescue Exception => e
     puts "Fetch failed due to: #{e}"
-  #ensure
-  #  return nil
   end
 end
 
 def retstring(value)
   if value.nil?
-    return 'Not found'
+    'Not found'
   else
-    return 'OK'
+    'OK'
   end
 end
 
 def fetch_other(path,lang)
   `subliminal --providers #{$providers} -l #{lang} -- "#{path}" 2>&1 >/dev/null`
   if $? == 0
-    return true
+    true
   else
-    return nil
+    nil
   end
 end
 
@@ -204,7 +194,7 @@ def fetch_subs (path,lang)
       print 'Not found in NP... In OS: '
       vo = fetch_other(path,lang)
       if ! vo.nil?
-        puts retstring(recode(path))
+        puts retstring(recode_file(path))
       else
         puts retstring(vo)
       end
@@ -216,7 +206,7 @@ end
 
 def lang_name (path,lang)
   filename = File.basename(path,".*")
-  return File.join( File.dirname(path), "#{filename}.#{lang}.srt" )
+  File.join( File.dirname(path), "#{filename}.#{lang}.srt" )
 end
 
 def check_subtitles(path)
@@ -226,6 +216,10 @@ def check_subtitles(path)
     end
   end
 end
+
+
+####
+# MISC logic
 
 def get_all(dirs)
   if File.exists?($lockfile)
@@ -259,6 +253,9 @@ def required_bin(bin)
     exit 4
   end
 end
+
+####
+# MAIN APP
 
 ['subotage.sh','subliminal'].each do |b|
   required_bin(b)
