@@ -20,7 +20,6 @@ $dirs = ['/data/Movies','/data/TV Shows']
 $ignored = /.*TS_Dreambox.*/
 $lockfile = '/home/debian-transmission/.napiser.lock'
 
-
 ####
 # Napiprojekt checksums, etc.
 def sum(file)
@@ -33,7 +32,7 @@ def sum(file)
 end
 
 def get_framerate(file,path)
-  $1 if `/usr/bin/ffmpeg -stats -i "#{path}" 2>&1 | grep Video` =~ /.*?([\d+\.]+)\s+fps.*/
+  $1 if `ffmpeg -stats -i "#{path}" 2>&1 | grep Video` =~ /.*?([\d+\.]+)\s+fps.*/
 end
 
 def mode
@@ -54,6 +53,14 @@ end
 
 def lang
   'PL'
+end
+
+def subliminal_version
+  if `subliminal --version`  =~ /subliminal,\s+version\s+1\.*/
+    1
+  else
+    0
+  end
 end
 
 ####
@@ -130,6 +137,8 @@ def get_napi_subtitles(sum,file,videofile)
           if to_srt(file,videofile).nil?
             print 'Failed'
             nil
+          else
+            true
           end
         end
         true
@@ -176,7 +185,13 @@ def retstring(value)
 end
 
 def fetch_other(path,lang)
-  `subliminal --providers #{$providers} -l #{lang} -- "#{path}" 2>&1 >/dev/null`
+  if subliminal_version == '0'
+    cmd = "subliminal --providers #{$providers} -l #{lang} -- \"#{path}\" 2>&1 >/dev/null"
+  else
+    provider = $providers.split(' ').join('-p ')
+    cmd = "subliminal download -l #{lang} -p #{provider} \"#{path}\" 2>&1 >/dev/null"
+  end
+  `#{cmd}`
   if $? == 0
     true
   else
@@ -257,7 +272,7 @@ end
 ####
 # MAIN APP
 
-['subotage.sh','subliminal'].each do |b|
+['subotage.sh','subliminal','ffmpeg'].each do |b|
   required_bin(b)
 end
 
