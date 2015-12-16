@@ -2,179 +2,186 @@
 
 require 'find'
 require 'fileutils'
-require 'digest'
 require 'tempfile'
-require 'open-uri'
-require 'base64'
-require 'nokogiri'
-require 'net/http'
 
 File.umask(0022)
 
-#$languages = ['en','pt','es','pl']
 $languages = ['en','pl']
-#$providers = "opensubtitles thesubdb tvsubtitles"
 $providers = "opensubtitles thesubdb"
 $filetypes = /(avi|wmv|mkv|rmvb|3gp|mp4|mpe?g)$/
 $dirs = ['/data/Movies','/data/TV Shows']
 $ignored = /.*TS_Dreambox.*/
 $lockfile = '/home/debian-transmission/.napiser.lock'
 
-####
-# Napiprojekt checksums, etc.
-def sum(file)
-  if File.file?(file)
-    content = open(file, 'r') { |io| io.read(10485760) }
-    Digest::MD5.hexdigest(content)
-  else
-    nil
+class Napiprojekt
+  def initialize
+    require 'nokogiri'
+    require 'base64'
+    require 'digest'
+    require 'open-uri'
+    require 'net/http'
+    # TODO - move require here.
   end
-end
 
-def get_framerate(file,path)
-  $1 if `ffmpeg -stats -i "#{path}" 2>&1 | grep Video` =~ /.*?([\d+\.]+)\s+fps.*/
-end
-
-def mode
-  '1'
-end
-
-def client
-  'pynapi'
-end
-
-def client_ver
-  '0'
-end
-
-def txt
-  '1'
-end
-
-def lang
-  'PL'
-end
-
-def subliminal_version
-  if `subliminal --version`  =~ /subliminal,\s+version\s+1\.*/
-    1
-  else
-    0
+  def get(path)
+    get_napi_subtitles(sum(path), output_file(path), path)
   end
-end
 
-####
-# SRT related logic
+  private
 
-def srt?(file)
-  if File.file?(file)
-    begin
-      srt = false
-      File.open(file, :encoding => "UTF-8").each do |line|
-        if line =~ /^\d+:\d+:\d+,\d+ --> \d+:\d+:\d+,\d+[ \r\n]*/
-          srt = true
-        end
-      end
-      srt
-    rescue Exception => e
-      puts e
-    end
-  end
-end
-
-def to_srt(file,path)
-  fps = get_framerate(file,path)
-  tmp = Tempfile.new('napiser_convert')
-  `subotage.sh -i '#{file}' -fi '#{fps}' -o '#{tmp.path}' 2>&1 >/dev/null`
-  if $?.to_i == 0
-    FileUtils.mv(tmp.path,file)
-    File.chmod(0644,file)
-    true
-  else
-    File.unlink(file)
-    tmp.unlink
-    nil
-  end
-end
-
-####
-# Recoding stuff
-
-def recode_file(file)
-  string = File.read(file)
-  out = recode_string(string)
-  if ! string.nil?
-    File.write(file,string)
-  else
-    nil
-  end
-end
-
-def recode_string(string)
-  string.encode!(Encoding::UTF_8,Encoding::CP1250, :invalid => :replace, :replace => "")
-end
-
-def get_napi_subtitles(sum,file,videofile)
-  params = {
-    'downloaded_subtitles_id'   => sum,
-    'mode'                      => mode,
-    'client'                    => client,
-    'client_ver'                => client_ver,
-    'downloaded_subtitles_lang' => lang,
-    'downloaded_subtitles_txt'  => txt,
-  }
-
-  url = URI.parse('http://napiprojekt.pl/api/api-napiprojekt3.php')
-  response = Net::HTTP.post_form(url, params)
-  if response.code == '200' && ! response.body.nil?
-    begin
-      xml = Nokogiri::XML(response.body)
-      if xml.at_xpath('//status').content =~ /success/
-        sub = Base64.decode64(xml.at_xpath('//content').content)
-        nil if sub.size < 40
-        File.write(file, sub, :mode => 'w')
-        if ! srt?(file)
-          if to_srt(file,videofile).nil?
-            print 'Failed'
-            nil
-          else
-            true
-          end
-        end
-        true
-      else
-        nil
-      end
-    rescue Exception => e
+  def sum(file)
+    if File.file?(file)
+      content = open(file, 'r') { |io| io.read(10485760) }
+      Digest::MD5.hexdigest(content)
+    else
       nil
     end
-  else
-    nil
   end
-end
 
-def output_file(file)
-  filename  = File.basename(file,".*")
-  File.join( File.dirname(file), "#{filename}.pl.srt" )
-end
+  def framerate(file,path)
+    $1 if `ffmpeg -stats -i "#{path}" 2>&1 | grep Video` =~ /.*?([\d+\.]+)\s+fps.*/
+  end
 
-def fetch_polish(path,lang)
-  begin
-    md5 = sum(path)
-    if ! md5.nil?
-      r = get_napi_subtitles(md5,output_file(path),path)
-      if r.nil?
+  def mode
+    '1'
+  end
+
+  def client
+    'pynapi'
+  end
+
+  def client_ver
+    '0'
+  end
+
+  def txt
+    '1'
+  end
+
+  def lang
+    'PL'
+  end
+
+  ####
+  # SRT related logic
+
+  def is_srt?(file)
+    if File.file?(file)
+      begin
+        srt = false
+        File.open(file, :encoding => "UTF-8").each do |line|
+          if line =~ /^\d+:\d+:\d+,\d+ --> \d+:\d+:\d+,\d+[ \r\n]*/
+            srt = true
+          end
+        end
+        srt
+      rescue Exception => e
+        puts e
+      end
+    end
+  end
+
+  def to_srt(file,path)
+    fps = framerate(file,path)
+    tmp = Tempfile.new('napiser_convert')
+    `subotage.sh -i '#{file}' -fi '#{fps}' -o '#{tmp.path}' 2>&1 >/dev/null`
+    if $?.to_i == 0
+      FileUtils.mv(tmp.path,file)
+      File.chmod(0644,file)
+      true
+    else
+      File.unlink(file)
+      tmp.unlink
+      nil
+    end
+  end
+
+  def get_napi_subtitles(sum,file,videofile)
+    params = {
+      'downloaded_subtitles_id'   => sum,
+      'mode'                      => mode,
+      'client'                    => client,
+      'client_ver'                => client_ver,
+      'downloaded_subtitles_lang' => lang,
+      'downloaded_subtitles_txt'  => txt,
+    }
+
+    url = URI.parse('http://napiprojekt.pl/api/api-napiprojekt3.php')
+    response = Net::HTTP.post_form(url, params)
+    if response.code == '200' && ! response.body.nil?
+      begin
+        xml = Nokogiri::XML(response.body)
+        if xml.at_xpath('//status').content =~ /success/
+          sub = Base64.decode64(xml.at_xpath('//content').content)
+          nil if sub.size < 40
+          File.write(file, sub, :mode => 'w')
+          if ! is_srt?(file)
+            if to_srt(file,videofile).nil?
+              nil
+            else
+              true
+            end
+          end
+          true
+        else
+          nil
+        end
+      rescue Exception => e
         nil
-      else
-        true
       end
     else
       nil
     end
-  rescue Exception => e
-    puts "Fetch failed due to: #{e}"
   end
+
+  def output_file(file)
+    filename  = File.basename(file,".*")
+    File.join( File.dirname(file), "#{filename}.pl.srt" )
+  end
+
+end ### Napiprojekt class
+
+class Subliminal
+  def initialize
+    # TODO - todo
+  end
+
+  def get(path,lang)
+    fetch(path,lang)
+  end
+
+  private
+
+  def fetch(path,lang)
+    if subliminal_version == 0
+      cmd = "subliminal --providers #{$providers} -l #{lang} -- \"#{path}\" 2>&1 >/dev/null"
+    else
+      provider = $providers.split(' ').join('-p ')
+      cmd = "subliminal download -l #{lang} -p #{provider} \"#{path}\" 2>&1 >/dev/null"
+    end
+    `#{cmd}`
+    if $? == 0
+      true
+    else
+      nil
+    end
+  end
+
+  def subliminal_version
+    if `subliminal --version`  =~ /subliminal,\s+version\s+1\.*/
+      1
+    else
+      0
+    end
+  end
+
 end
+
+###### OLD SCRIPT
+
+$np = Napiprojekt.new
+
+# exit 0
 
 def retstring(value)
   if value.nil?
@@ -184,42 +191,28 @@ def retstring(value)
   end
 end
 
-def fetch_other(path,lang)
-  if subliminal_version == '0'
-    cmd = "subliminal --providers #{$providers} -l #{lang} -- \"#{path}\" 2>&1 >/dev/null"
-  else
-    provider = $providers.split(' ').join('-p ')
-    cmd = "subliminal download -l #{lang} -p #{provider} \"#{path}\" 2>&1 >/dev/null"
-  end
-  `#{cmd}`
-  if $? == 0
-    true
-  else
-    nil
-  end
-end
-
-def fetch_subs (path,lang)
+def fetch_subs(path,lang)
+  sb = Subliminal.new
   print "Processing #{path} lang: #{lang}... "
   if lang != 'pl'
-    puts retstring(fetch_other(path,lang))
+    puts retstring(sb.get(path,lang))
   else
-    vn = fetch_polish(path,lang)
-    if vn.nil?
+    n = $np.get(path)
+    if n.nil?
       print 'Not found in NP... In OS: '
-      vo = fetch_other(path,lang)
-      if ! vo.nil?
+      o = sb.get(path,lang)
+      if ! o.nil?
         puts retstring(recode_file(path))
       else
-        puts retstring(vo)
+        puts retstring(o)
       end
     else
-      puts retstring(vn)
+      puts retstring(n)
     end
   end
 end
 
-def lang_name (path,lang)
+def lang_name(path,lang)
   filename = File.basename(path,".*")
   File.join( File.dirname(path), "#{filename}.#{lang}.srt" )
 end
