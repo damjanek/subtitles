@@ -11,7 +11,7 @@ $providers = "opensubtitles thesubdb"
 $filetypes = /(avi|wmv|mkv|rmvb|3gp|mp4|mpe?g)$/
 $dirs = ['/data/Movies','/data/TV Shows']
 $ignored = /.*TS_Dreambox.*/
-$lockfile = '/home/debian-transmission/.napiser.lock'
+$lockfile = '/home/debian-transmission/.subtitles.lock'
 
 class Napiprojekt
   def initialize
