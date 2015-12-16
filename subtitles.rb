@@ -167,7 +167,7 @@ class Subliminal
   end
 
   def subliminal_version
-    if `subliminal --version`  =~ /subliminal,\s+version\s+1\.*/
+    if `subliminal --version 2>&1`  =~ /subliminal,\s+version\s+1\.*/
       1
     else
       0
