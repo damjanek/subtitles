@@ -20,7 +20,6 @@ class Napiprojekt
     require 'digest'
     require 'open-uri'
     require 'net/http'
-    # TODO - move require here.
   end
 
   def get(path)
@@ -179,10 +178,6 @@ end
 
 ###### OLD SCRIPT
 
-$np = Napiprojekt.new
-
-# exit 0
-
 def retstring(value)
   if value.nil?
     'Not found'
@@ -225,7 +220,6 @@ def check_subtitles(path)
   end
 end
 
-
 ####
 # MISC logic
 
@@ -264,6 +258,8 @@ end
 
 ####
 # MAIN APP
+
+$np = Napiprojekt.new
 
 ['subotage.sh','subliminal','ffmpeg'].each do |b|
   required_bin(b)
