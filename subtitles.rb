@@ -104,31 +104,35 @@ class Napiprojekt
       'downloaded_subtitles_lang' => lang,
       'downloaded_subtitles_txt'  => txt,
     }
-
-    url = URI.parse('http://napiprojekt.pl/api/api-napiprojekt3.php')
-    response = Net::HTTP.post_form(url, params)
-    if response.code == '200' && ! response.body.nil?
-      begin
-        xml = Nokogiri::XML(response.body)
-        if xml.at_xpath('//status').content =~ /success/
-          sub = Base64.decode64(xml.at_xpath('//content').content)
-          nil if sub.size < 40
-          File.write(file, sub, :mode => 'w')
-          if ! is_srt?(file)
-            if to_srt(file,videofile).nil?
-              nil
-            else
-              true
+    begin
+      url = URI.parse('http://napiprojekt.pl/api/api-napiprojekt3.php')
+      response = Net::HTTP.post_form(url, params)
+      if response.code == '200' && ! response.body.nil?
+        begin
+          xml = Nokogiri::XML(response.body)
+          if xml.at_xpath('//status').content =~ /success/
+            sub = Base64.decode64(xml.at_xpath('//content').content)
+            nil if sub.size < 40
+            File.write(file, sub, :mode => 'w')
+            if ! is_srt?(file)
+              if to_srt(file,videofile).nil?
+                nil
+              else
+                true
+              end
             end
+            true
+          else
+            nil
           end
-          true
-        else
+        rescue Exception => e
           nil
         end
-      rescue Exception => e
+      else
         nil
       end
-    else
+    rescue Timeout::Error
+      puts 'timeout'
       nil
     end
   end
