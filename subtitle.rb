@@ -42,7 +42,7 @@ class Subtitle
   def to_srt(subtitle_file,video_file)
     fps = framerate(video_file)
     tmp = Tempfile.new('napiser_convert')
-    `subotage.sh -i '#{subtitle_file}' -fi '#{fps}' -o '#{tmp.path}' 2>&1 >/dev/null`
+    `subotage.sh -i "#{subtitle_file}" -fi '#{fps}' -o '#{tmp.path}' 2>&1 >/dev/null`
     if $?.to_i == 0
       FileUtils.mv(tmp.path,subtitle_file)
       File.chmod(0644,subtitle_file)
