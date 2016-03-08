@@ -29,7 +29,6 @@ class Subtitle
     if File.file?(subtitle_file)
       begin
         srt = false
-        # File.open(subtitle_file, :encoding => 'UTF-8').each do |line|
         File.open(subtitle_file, 'rb').each do |line|
           srt = true if line =~ /^\d+:\d+:\d+,\d+ --> \d+:\d+:\d+,\d+[ \r\n]*/
         end

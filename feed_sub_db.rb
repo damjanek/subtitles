@@ -3,6 +3,7 @@
 require 'find'
 require 'fileutils'
 require 'sequel'
+require 'etc'
 require_relative 'subtitle'
 
 DB = Sequel.sqlite('filelist.db')
@@ -23,26 +24,10 @@ File.umask(0022)
 
 $languages = ['en','pl','es','pt']
 $filetypes = /(avi|mkv|mp4|mpe?g)$/
-$dirs = ['./']
+dirs = ['/data/Movies','/data/TV Shows']
+# dirs = ['./']
 $ignored = /.*TS_Dreambox.*/
-$lockfile = '.feed_db.lock'
-
-def pidfile(action)
-  if action == 'create'
-    if File.exists?($lockfile)
-      warn 'Lockfile exists'
-      exit 1
-      # TODO - dorobic olewanie pidfile jesli proces nie chodzi
-    else
-      FileUtils.touch($lockfile)
-    end
-  elsif action == 'remove'
-    FileUtils.rm($lockfile)
- else
-    warn "Wrong action: #{action}"
-    exit 1
-  end
-end
+$lockfile = Etc.getpwuid.dir + '/.feed_db.lock'
 
 def sub_exists?(path,lang)
   if File.exists?($subtitle.sub_name(path,lang))
@@ -74,7 +59,7 @@ def get_all(dirs)
   FileUtils.rm($lockfile)
 end
 
-get_all($dirs)
+get_all(dirs)
 
 DB.transaction do
   $data.each do |t|
