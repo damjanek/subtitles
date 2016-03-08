@@ -3,14 +3,15 @@
 require 'find'
 require 'fileutils'
 require 'sequel'
+require_relative 'subtitle'
 
 DB = Sequel.sqlite('filelist.db')
+$subtitle = Subtitle.new
 
 DB.create_table?(:subtitles) do
   primary_key String :name
   boolean :pl
   boolean :en
-  boolean :pol
   boolean :pt
   boolean :es
   boolean :active
@@ -20,16 +21,16 @@ subtitles = DB[:subtitles]
 
 File.umask(0022)
 
-$languages = ['en','pl','es','pt','pol']
-$filetypes = /(avi|wmv|mkv|rmvb|3gp|mp4|mpe?g)$/
-$dirs = ['/data/Movies','/data/TV Shows']
+$languages = ['en','pl','es','pt']
+$filetypes = /(avi|mkv|mp4|mpe?g)$/
+$dirs = ['./']
 $ignored = /.*TS_Dreambox.*/
-$lockfile = '/home/debian-transmission/.feed_db.lock'
+$lockfile = '.feed_db.lock'
 
 def pidfile(action)
   if action == 'create'
     if File.exists?($lockfile)
-      puts 'Lockfile exists'
+      warn 'Lockfile exists'
       exit 1
       # TODO - dorobic olewanie pidfile jesli proces nie chodzi
     else
@@ -38,18 +39,13 @@ def pidfile(action)
   elsif action == 'remove'
     FileUtils.rm($lockfile)
  else
-    puts "Wrong action: #{action}"
+    warn "Wrong action: #{action}"
     exit 1
   end
 end
 
-def lang_name (path,lang)
-  filename = File.basename(path,".*")
-  return File.join( File.dirname(path), "#{filename}.#{lang}.srt" )
-end
-
 def sub_exists?(path,lang)
-  if File.exists?(lang_name(path,lang))
+  if File.exists?($subtitle.sub_name(path,lang))
     return 't'
   else
     return 'f'
@@ -64,7 +60,7 @@ end
 
 def get_all(dirs)
   if File.exists?($lockfile)
-    puts "Lockfile exists. Quitting"
+    warn "Lockfile exists. Quitting"
     exit 1
   else
     FileUtils.touch($lockfile)
@@ -84,7 +80,6 @@ DB.transaction do
   $data.each do |t|
     if subtitles.where(:name => t[0]).count > 0
       subtitles.where(:name => t[0]).update(
-        :pol  => t[1]['pol'],
         :pl   => t[1]['pl'],
         :en   => t[1]['en'],
         :es   => t[1]['es'],
@@ -94,7 +89,6 @@ DB.transaction do
     else
       subtitles.insert(
         :name => t[0],
-        :pol  => t[1]['pol'],
         :pl   => t[1]['pl'],
         :en   => t[1]['en'],
         :es   => t[1]['es'],

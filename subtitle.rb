@@ -1,5 +1,14 @@
 class Subtitle
 
+  require 'fileutils'
+  require 'tempfile'
+
+  def initialize
+    ['subotage.sh','ffmpeg'].each do |b|
+      required_bin(b)
+    end
+  end
+
   def recode_file(subtitle_file)
     text = File.read(subtitle_file)
     out = recode_string(text)
@@ -52,6 +61,14 @@ class Subtitle
 
   def framerate(video_file)
     $1 if `ffmpeg -stats -i "#{video_file}" 2>&1 | grep Video` =~ /.*?([\d+\.]+)\s+fps.*/
+  end
+
+  def required_bin(bin)
+    `which #{bin}`
+    if ! $?.success?
+      warn "#{bin} is missing in PATH."
+      exit 4
+    end
   end
 
 end

@@ -3,8 +3,6 @@
 #encoding: utf-8
 
 require 'find'
-require 'fileutils'
-require 'tempfile'
 require_relative 'napiprojekt'
 require_relative 'subliminal'
 
@@ -12,7 +10,7 @@ File.umask(0022)
 
 $languages = ['en','pl']
 $providers = 'opensubtitles thesubdb'
-$filetypes = /(avi|wmv|mkv|rmvb|3gp|mp4|mpe?g)$/
+$filetypes = /(avi|mkv|mp4|mpe?g)$/
 dirs = ['/data/Movies','/data/TV Shows']
 $ignored = /.*TS_Dreambox.*/
 $lockfile = '/home/debian-transmission/.subtitles.lock'
@@ -84,22 +82,10 @@ def get_single_file(file)
   end
 end
 
-def required_bin(bin)
-  `which #{bin}`
-  if ! $?.success?
-    puts "#{bin} is missing in PATH."
-    exit 4
-  end
-end
-
 ####
 # MAIN APP
 
 $np = Napiprojekt.new
-
-['subotage.sh','subliminal','ffmpeg'].each do |b|
-  required_bin(b)
-end
 
 if ARGV.length == 1
   get_single_file(ARGV[0])

@@ -1,6 +1,11 @@
 require_relative 'subtitle'
 
 class Subliminal < Subtitle
+
+  def initialize
+    required_bin('subliminal')
+  end
+
   def initialize(providers)
     @providers = providers
   end
