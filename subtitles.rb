@@ -3,6 +3,7 @@
 #encoding: utf-8
 
 require 'find'
+require 'etc'
 require_relative 'napiprojekt'
 require_relative 'subliminal'
 
@@ -10,10 +11,10 @@ File.umask(0022)
 
 $languages = ['en','pl']
 $providers = 'opensubtitles thesubdb'
-$filetypes = /(avi|mkv|mp4|mpe?g)$/
+filetypes = /(avi|mkv|mp4|mpe?g)$/
 dirs = ['/data/Movies','/data/TV Shows']
-$ignored = /.*TS_Dreambox.*/
-$lockfile = '/home/debian-transmission/.subtitles.lock'
+ignored = /.*TS_Dreambox.*/
+$lockfile = Etc.getpwuid.dir + '/.subtitles.lock'
 
 ###### OLD SCRIPT
 
@@ -57,7 +58,7 @@ end
 ####
 # MISC logic
 
-def get_all(dirs)
+def get_all(dirs,filetypes,ignored)
   if File.exists?($lockfile)
     puts "Lockfile exists. Quitting"
     exit 2
@@ -65,7 +66,7 @@ def get_all(dirs)
     FileUtils.touch($lockfile)
   end
   dirs.each do |dir|
-    file_list = Find.find(dir).grep($filetypes).reject{|e| e=~ $ignored }.map
+    file_list = Find.find(dir).grep(filetypes).reject{|e| e=~ ignored }.map
     file_list.each do |file|
       check_subtitles(file)
     end
@@ -90,7 +91,7 @@ $np = Napiprojekt.new
 if ARGV.length == 1
   get_single_file(ARGV[0])
 elsif ARGV.length == 0
-  get_all(dirs)
+  get_all(dirs,filetypes,ignored)
 else
   puts "Wrong number of arguments!\nIt should be one (just one file) or no arguments"
   exit 1
