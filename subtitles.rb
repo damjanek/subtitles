@@ -32,6 +32,36 @@ def retstring(value)
   end
 end
 
+def is_running(pid)
+  begin
+    Process.getpgid( pid )
+    true
+  rescue Errno::ESRCH
+    false
+  end
+end
+
+def check_lockfile(lock)
+  if File.exists?(lock)
+    warn "Lockfile #{lock} exists."
+    begin
+      pid = File.read(lock)
+      if is_running(pid)
+        warn "And the process is running. Quitting."
+        exit 1
+      else
+        warn "And the process is not running. Ignoring."
+      end
+    rescue TypeError
+      warn "But has malformed content. Ignoring."
+    end
+  else
+    f = File.new(lock, 'w')
+    f.write(Process.pid)
+    f.close
+  end
+end
+
 def get_single_file(video_file)
   if File.file?(video_file)
     napiprojekt = Napiprojekt.new
@@ -50,6 +80,7 @@ end
 
 def get_from_database
   lockfile = Etc.getpwuid.dir + '/.subtitles.lock'
+  check_lockfile(lockfile)
   db = Sequel.sqlite(@config['dblocation'])
   requested = db[:subtitles]
   # Fetch with napiprojekt
@@ -72,6 +103,7 @@ def get_from_database
       puts retstring(sb.get(req[:name],lang))
     end
   end
+  File.unlink(lockfile)
 end
 
 ####
