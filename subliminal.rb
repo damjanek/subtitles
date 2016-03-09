@@ -6,17 +6,19 @@ class Subliminal < Subtitle
     required_bin('subliminal')
   end
 
-  def initialize(providers)
+  def initialize(providers='opensubtitles thesubdb')
     @providers = providers
   end
 
-  def get(video_file,lang)
+  def get(video_file,lang='pl')
     begin
       subtitle_file =  fetch(video_file,lang)
       if ! subtitle_file.nil?
         if ! is_srt? subtitle_file
           recode_file(subtitle_file)
           to_srt(subtitle_file,video_file)
+          subtitle_file
+        else
           subtitle_file
         end
       else

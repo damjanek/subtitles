@@ -67,10 +67,10 @@ class Napiprojekt < Subtitle
               if to_srt(subtitle_file,video_file).nil?
                 nil
               else
-                true
+                subtitle_file
               end
             end
-            true
+            subtitle_file
           else
             nil
           end

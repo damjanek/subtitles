@@ -4,9 +4,23 @@ require 'find'
 require 'fileutils'
 require 'sequel'
 require 'etc'
+require 'yaml'
 require_relative 'subtitle'
 
-DB = Sequel.sqlite('filelist.db')
+config_file = Etc.getpwuid.dir + '/.subtitles.yaml'
+
+begin
+  @config = YAML.load_file(config_file)
+rescue Errno::ENOENT
+  warn 'Config file #{config_file} does not exists!'
+  exit 1
+end
+
+$languages = @config['languages']
+lockfile = Etc.getpwuid.dir + '/.feed_db.lock'
+
+DB = Sequel.sqlite(@config['dblocation'])
+
 $subtitle = Subtitle.new
 
 DB.create_table?(:subtitles) do
@@ -22,18 +36,12 @@ subtitles = DB[:subtitles]
 
 File.umask(0022)
 
-$languages = ['en','pl','es','pt']
-$filetypes = /(avi|mkv|mp4|mpe?g)$/
-dirs = ['/data/Movies','/data/TV Shows']
-# dirs = ['./']
-$ignored = /.*TS_Dreambox.*/
-$lockfile = Etc.getpwuid.dir + '/.feed_db.lock'
 
 def sub_exists?(path,lang)
   if File.exists?($subtitle.sub_name(path,lang))
-    return 't'
+    't'
   else
-    return 'f'
+    'f'
   end
 end
 
@@ -43,23 +51,28 @@ def check_subtitles(path)
   end
 end
 
-def get_all(dirs)
-  if File.exists?($lockfile)
+def get_all(dirs,filetypes,ignored,lockfile)
+  if File.exists?(lockfile)
     warn "Lockfile exists. Quitting"
     exit 1
   else
-    FileUtils.touch($lockfile)
+    FileUtils.touch(lockfile)
   end
   $data = Hash.new {|h,k| h[k] = Hash.new(&h.default_proc) }
+  ext = Regexp.new('(' + filetypes.join('|') + ')$')
   dirs.each do |dir|
-    Find.find(dir).grep($filetypes).reject{|e| e=~ $ignored }.map.each do |file|
+    Find.find(dir).grep(ext).reject{|e| e=~ ignored }.map.each do |file|
       check_subtitles(file)
     end
   end
-  FileUtils.rm($lockfile)
+  FileUtils.rm(lockfile)
 end
 
-get_all(dirs)
+
+#### Main app:
+#
+
+get_all(@config['dirs'],@config['filetypes'],@config['ignored'],lockfile)
 
 DB.transaction do
   $data.each do |t|

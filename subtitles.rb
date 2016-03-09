@@ -2,97 +2,87 @@
 
 #encoding: utf-8
 
-require 'find'
 require 'etc'
+require 'yaml'
+require 'sequel'
 require_relative 'napiprojekt'
 require_relative 'subliminal'
 
 File.umask(0022)
 
-$languages = ['en','pl']
-$providers = 'opensubtitles thesubdb'
-filetypes = /(avi|mkv|mp4|mpe?g)$/
-dirs = ['/data/Movies','/data/TV Shows']
-ignored = /.*TS_Dreambox.*/
-$lockfile = Etc.getpwuid.dir + '/.subtitles.lock'
+###
+# Config operations
 
-###### OLD SCRIPT
+config_file = Etc.getpwuid.dir + '/.subtitles.yaml'
+begin
+  @config = YAML.load_file(config_file)
+rescue Errno::ENOENT
+  warn 'Config file #{config_file} does not exists!'
+  exit 1
+end
+
+###
+# functions
 
 def retstring(value)
   if value.nil?
-    'Not found'
+    'Not found.'
   else
-    'OK'
+    'OK.'
   end
 end
 
-def fetch_subs(path,lang)
-  sb = Subliminal.new($providers)
-  print "Processing #{path} lang: #{lang}... "
-  if lang != 'pl'
-    puts retstring(sb.get(path,lang))
+def get_single_file(video_file)
+  if File.file?(video_file)
+    napiprojekt = Napiprojekt.new
+    print "Trying to get pl subtitles from NapiProjekt for #{video_file}..."
+    puts retstring(napiprojekt.get(video_file))
+    subliminal = Subliminal.new
+    @config['languages'].each do |lang|
+      print "Trying to get #{lang} subtitles using subliminal for #{video_file}..."
+      puts retstring(subliminal.get(video_file,lang))
+    end
   else
-    n = $np.get(path)
-    if n.nil?
-      print 'Not found in NP... In OS: '
-      o = sb.get(path,lang)
-      puts retstring(o)
-    else
-      puts retstring(n)
+    warn "#{video_file} does not exists or is not a file!"
+    exit 1
+  end
+end
+
+def get_from_database
+  lockfile = Etc.getpwuid.dir + '/.subtitles.lock'
+  db = Sequel.sqlite(@config['dblocation'])
+  requested = db[:subtitles]
+  # Fetch with napiprojekt
+  np = Napiprojekt.new
+  sb = Subliminal.new
+  requested.where(:pl => 'f').each do |req|
+    print "Processing #{req[:name]} with Napiprojekt..."
+    result = np.get(req[:name])
+    puts retstring(np.get(req[:name]))
+    # If not found, search for polish subtitles using subliminal
+    if result.nil?
+      print "Processing #{req[:name]} with Subliminal..."
+      puts retstring(sb.get(req[:name],'pl'))
+    end
+  end
+  # Fetch with subliminal
+  @config['languages'].reject{|a| a == 'pl' }.each do |lang|
+    requested.where(lang.to_sym => 'f').each do |req|
+      print "Processing #{req[:name]} #{lang} with Subliminal..."
+      puts retstring(sb.get(req[:name],lang))
     end
   end
 end
 
-
-def lang_name(path,lang)
-  filename = File.basename(path,".*")
-  File.join( File.dirname(path), "#{filename}.#{lang}.srt" )
-end
-
-def check_subtitles(path)
-  $languages.each do |lang|
-    fetch_subs(path,lang) if ! File.exists?(lang_name(path,lang))
-  end
-end
-
 ####
-# MISC logic
-
-def get_all(dirs,filetypes,ignored)
-  if File.exists?($lockfile)
-    puts "Lockfile exists. Quitting"
-    exit 2
-  else
-    FileUtils.touch($lockfile)
-  end
-  dirs.each do |dir|
-    file_list = Find.find(dir).grep(filetypes).reject{|e| e=~ ignored }.map
-    file_list.each do |file|
-      check_subtitles(file)
-    end
-  end
-  FileUtils.rm($lockfile)
-end
-
-def get_single_file(file)
-  if File.file?(file)
-    check_subtitles(file)
-  else
-    puts "#{file} is not a file!"
-    exit 3
-  end
-end
-
-####
-# MAIN APP
-
-$np = Napiprojekt.new
+# Main app
 
 if ARGV.length == 1
   get_single_file(ARGV[0])
 elsif ARGV.length == 0
-  get_all(dirs,filetypes,ignored)
+  get_from_database
 else
-  puts "Wrong number of arguments!\nIt should be one (just one file) or no arguments"
+  warn 'Wrong number of arguments!'
+  warn 'It should be one (just one file) or no arguments'
   exit 1
 end
