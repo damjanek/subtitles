@@ -55,7 +55,7 @@ class Subtitle
   end
 
   def sub_name(video_file,lang)
-    File.basename(video_file,File.extname(video_file)) + '.' + lang + '.srt'
+    File.dirname(video_file) + '/' + File.basename(video_file,File.extname(video_file)) + '.' + lang + '.srt'
   end
 
   def framerate(video_file)
