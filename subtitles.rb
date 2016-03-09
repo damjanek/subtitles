@@ -21,6 +21,8 @@ rescue Errno::ENOENT
   exit 1
 end
 
+logfile = Etc.getpwuid.dir + '/' + @config['logfile']
+
 ###
 # functions
 
@@ -81,6 +83,9 @@ end
 def get_from_database
   lockfile = Etc.getpwuid.dir + '/.subtitles.lock'
   check_lockfile(lockfile)
+  puts "Refreshing subtitle database"
+  `#{@config['feeder_bin_location']}`
+  puts "Complete"
   db = Sequel.sqlite(@config['dblocation'])
   requested = db[:subtitles]
   # Fetch with napiprojekt
@@ -112,6 +117,11 @@ end
 if ARGV.length == 1
   get_single_file(ARGV[0])
 elsif ARGV.length == 0
+  # push everything to logfile if not running from tty
+  if ! $stdout.isatty
+    $stdout.reopen(logfile,'w')
+    $stderr.reopen(logfile,'w')
+  end
   get_from_database
 else
   warn 'Wrong number of arguments!'
