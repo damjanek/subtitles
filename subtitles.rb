@@ -56,6 +56,9 @@ def check_lockfile(lock)
       end
     rescue TypeError
       warn "But has malformed content. Ignoring."
+      f = File.new(lock, 'w')
+      f.write(Process.pid)
+      f.close
     end
   else
     f = File.new(lock, 'w')
