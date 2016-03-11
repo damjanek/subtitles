@@ -60,8 +60,9 @@ def get_all(dirs,filetypes,ignored,lockfile)
   end
   $data = Hash.new {|h,k| h[k] = Hash.new(&h.default_proc) }
   ext = Regexp.new('(' + filetypes.join('|') + ')$')
+  ignore = Regexp.new('(' + ignored.join('|') + ')', 'i')
   dirs.each do |dir|
-    Find.find(dir).grep(ext).reject{|e| e=~ ignored }.map.each do |file|
+    Find.find(dir).grep(ext).reject{|e| e=~ ignore }.map.each do |file|
       check_subtitles(file)
     end
   end
