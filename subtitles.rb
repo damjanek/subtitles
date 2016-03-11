@@ -36,7 +36,7 @@ end
 
 def is_running(pid)
   begin
-    Process.getpgid( pid )
+    Process.getpgid(pid)
     true
   rescue Errno::ESRCH
     false
@@ -48,18 +48,19 @@ def check_lockfile(lock)
     warn "Lockfile #{lock} exists."
     begin
       pid = File.read(lock)
-      if is_running(pid)
+      if is_running(pid.to_i)
         warn "And the process is running. Quitting."
         exit 1
       else
         warn "And the process is not running. Ignoring."
       end
     rescue TypeError
-      warn "But has malformed content. Ignoring."
-      f = File.new(lock, 'w')
-      f.write(Process.pid)
-      f.close
+      warn "Quitting."
+      exit 1
     end
+    f = File.new(lock, 'w')
+    f.write(Process.pid)
+    f.close
   else
     f = File.new(lock, 'w')
     f.write(Process.pid)
