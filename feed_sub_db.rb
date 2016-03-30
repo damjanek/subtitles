@@ -52,12 +52,8 @@ def check_subtitles(path)
 end
 
 def get_all(dirs,filetypes,ignored,lockfile)
-  if File.exists?(lockfile)
-    warn "Lockfile exists. Quitting"
-    exit 1
-  else
-    FileUtils.touch(lockfile)
-  end
+  toolkit = Subtitle.new
+  toolkit.check_lockfile(lockfile)
   $data = Hash.new {|h,k| h[k] = Hash.new(&h.default_proc) }
   ext = Regexp.new('(' + filetypes.join('|') + ')$')
   ignore = Regexp.new('(' + ignored.join('|') + ')', 'i')

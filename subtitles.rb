@@ -34,40 +34,6 @@ def retstring(value)
   end
 end
 
-def is_running(pid)
-  begin
-    Process.getpgid(pid)
-    true
-  rescue Errno::ESRCH
-    false
-  end
-end
-
-def check_lockfile(lock)
-  if File.exists?(lock)
-    warn "Lockfile #{lock} exists."
-    begin
-      pid = File.read(lock)
-      if is_running(pid.to_i)
-        warn "And the process is running. Quitting."
-        exit 1
-      else
-        warn "And the process is not running. Ignoring."
-      end
-    rescue TypeError
-      warn "Quitting."
-      exit 1
-    end
-    f = File.new(lock, 'w')
-    f.write(Process.pid)
-    f.close
-  else
-    f = File.new(lock, 'w')
-    f.write(Process.pid)
-    f.close
-  end
-end
-
 def get_single_file(video_file)
   if File.file?(video_file)
     napiprojekt = Napiprojekt.new
@@ -86,7 +52,8 @@ end
 
 def get_from_database
   lockfile = Etc.getpwuid.dir + '/.subtitles.lock'
-  check_lockfile(lockfile)
+  toolkit = Subtitle.new
+  toolkit.check_lockfile(lockfile)
   puts "Refreshing subtitle database"
   `#{@config['feeder_bin_location']}`
   puts "Complete"
