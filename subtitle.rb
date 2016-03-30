@@ -2,9 +2,10 @@ class Subtitle
 
   require 'fileutils'
   require 'tempfile'
+  require_relative 'subconv'
 
   def initialize
-    ['subotage.sh','ffmpeg'].each do |b|
+    ['ffmpeg'].each do |b|
       required_bin(b)
     end
   end
@@ -42,16 +43,11 @@ class Subtitle
   def to_srt(subtitle_file,video_file)
     fps = framerate(video_file)
     tmp = Tempfile.new('napiser_convert')
-    `subotage.sh -i "#{subtitle_file}" -fi '#{fps}' -o '#{tmp.path}' 2>&1 >/dev/null`
-    if $?.to_i == 0
-      FileUtils.mv(tmp.path,subtitle_file)
-      File.chmod(0644,subtitle_file)
-      true
-    else
-      File.unlink(subtitle_file)
-      tmp.unlink
-      nil
-    end
+    subconv = Subconv.new
+    subconv.convert(subtitle_file,fps,tmp.path)
+    FileUtils.mv(tmp.path,subtitle_file)
+    File.chmod(0644,subtitle_file)
+    true
   end
 
   def sub_name(video_file,lang)
