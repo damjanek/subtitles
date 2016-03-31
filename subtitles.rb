@@ -72,13 +72,13 @@ def get_from_database
   requested = db[:subtitles]
   # Fetch with napiprojekt
   np = Napiprojekt.new
+  sb = Subliminal.new unless @config['disable_subliminal']
   requested.where(:pl => 'f').each do |req|
     print "Processing #{req[:name]} with Napiprojekt..."
     result = np.get(req[:name])
     puts retstring(np.get(req[:name]))
     # If not found, search for polish subtitles using subliminal
     unless @config['disable_subliminal']
-      sb = Subliminal.new
       if result.nil?
         print "Processing #{req[:name]} with Subliminal..."
         puts retstring(sb.get(req[:name],'pl'))
