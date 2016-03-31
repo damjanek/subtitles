@@ -24,5 +24,7 @@ logfile: subtitles.log
 feeder_bin_location: /home/username/subtitles/feed_sub_db.rb
 ```
 
-Additionally, you will need to install few tools: *subotage.sh*, *ffmpeg* and *subliminal*.
+In case you want to disable subliminal part, add *disable_subliminal: true* and leave only *pl* in *languages*
+
+Additionally, you will need to install few tools: *ffmpeg* and *subliminal*.
 Place those in your $PATH and you're good to go.

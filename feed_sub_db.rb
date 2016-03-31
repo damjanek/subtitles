@@ -25,10 +25,9 @@ $subtitle = Subtitle.new
 
 DB.create_table?(:subtitles) do
   primary_key String :name
-  boolean :pl
-  boolean :en
-  boolean :pt
-  boolean :es
+  $languages.each do |lang|
+    boolean lang.to_sym
+  end
   boolean :active
 end
 
@@ -73,23 +72,16 @@ get_all(@config['dirs'],@config['filetypes'],@config['ignored'],lockfile)
 
 DB.transaction do
   $data.each do |t|
+    hash = Hash.new
+    $languages.each do |lang|
+      hash[lang.to_sym] = t[1][lang]
+    end
+    hash[:active] = 't'
     if subtitles.where(:name => t[0]).count > 0
-      subtitles.where(:name => t[0]).update(
-        :pl   => t[1]['pl'],
-        :en   => t[1]['en'],
-        :es   => t[1]['es'],
-        :pt   => t[1]['pt'],
-        :active => 't'
-      )
+      subtitles.where(:name => t[0]).update(hash)
     else
-      subtitles.insert(
-        :name => t[0],
-        :pl   => t[1]['pl'],
-        :en   => t[1]['en'],
-        :es   => t[1]['es'],
-        :pt   => t[1]['pt'],
-        :active => 't'
-      )
+      hash[:name] = t[0]
+      subtitles.insert(hash)
     end # if subtitles
   end # $data.each
   subtitles.where(:active => 'f').delete
