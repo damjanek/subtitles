@@ -2,6 +2,8 @@
 
 #encoding: utf-8
 
+$VERBOSE=nil
+
 require 'etc'
 require 'yaml'
 require 'sequel'
@@ -31,23 +33,17 @@ end
 
 def retstring(value)
   if value.nil?
-    'Not found.'
+    'Not found'
   else
-    'OK.'
+    'OK'
   end
 end
 
 def get_single_file(video_file)
   if File.file?(video_file)
-    napiprojekt = Napiprojekt.new
-    print "Trying to get pl subtitles from NapiProjekt for #{video_file}..."
-    puts retstring(napiprojekt.get(video_file))
-    unless @config['disable_subliminal']
-      subliminal = Subliminal.new
-      @config['languages'].each do |lang|
-        print "Trying to get #{lang} subtitles using subliminal for #{video_file}..."
-        puts retstring(subliminal.get(video_file,lang))
-      end
+    puts "Processing #{video_file}:"
+    @config['languages'].each do |lang|
+      grab(video_file,lang)
     end
   else
     warn "#{video_file} does not exists or is not a file!"
@@ -61,39 +57,47 @@ def get_directory(directory)
   nil
 end
 
+def grab(file,lang)
+  subliminal = ! @config['disable_subliminal']
+  np = Napiprojekt.new
+  sb = Subliminal.new unless @config['disable_subliminal']
+
+  if lang == 'pl'
+    result = np.get(file)
+    puts "\t#{lang.upcase} Napiprojekt:\t#{retstring(result)}"
+    if result.nil?
+      puts "\t#{lang.upcase} Subliminal:\t#{retstring(sb.get(file,lang))}" if subliminal
+    end
+  else
+    puts "\t#{lang.upcase} Subliminal:\t#{retstring(sb.get(file,lang))}" if subliminal
+  end
+end
+
+def feeder
+  puts 'Refreshing subtitle database'
+  `#{@config['feeder_bin_location']}`
+  puts 'Complete'
+end
+
 def get_from_database
   lockfile = Etc.getpwuid.dir + '/.subtitles.lock'
   toolkit = Subtitle.new
   toolkit.check_lockfile(lockfile)
-  puts "Refreshing subtitle database"
-  `#{@config['feeder_bin_location']}`
-  puts "Complete"
+  feeder
   db = Sequel.sqlite(@config['dblocation'])
   requested = db[:subtitles]
-  # Fetch with napiprojekt
-  np = Napiprojekt.new
-  sb = Subliminal.new unless @config['disable_subliminal']
-  requested.where(:pl => 'f').each do |req|
-    print "Processing #{req[:name]} with Napiprojekt..."
-    result = np.get(req[:name])
-    puts retstring(np.get(req[:name]))
-    # If not found, search for polish subtitles using subliminal
-    unless @config['disable_subliminal']
-      if result.nil?
-        print "Processing #{req[:name]} with Subliminal..."
-        puts retstring(sb.get(req[:name],'pl'))
+  total = requested.count
+  current = 1
+  requested.each do |req|
+    puts "[#{current}/#{total}] Processing #{req[:name]}:"
+    @config['languages'].each do |lang|
+      requested.where(lang.to_sym => 'f', :name => req[:name]).each do |r|
+        grab(req[:name],lang)
       end
     end
+    current += 1
   end
-  # Fetch with subliminal
-  unless @config['disable_subliminal']
-    @config['languages'].reject{|a| a == 'pl' }.each do |lang|
-      requested.where(lang.to_sym => 'f').each do |req|
-        print "Processing #{req[:name]} #{lang} with Subliminal..."
-        puts retstring(sb.get(req[:name],lang))
-      end
-    end
-  end
+  puts 'Finished!'
   File.unlink(lockfile)
 end
 
@@ -112,8 +116,8 @@ if ARGV.length == 1
 elsif ARGV.length == 0
   # push everything to logfile if not running from tty
   if ! $stdout.isatty
-    $stdout.reopen(logfile,'w')
-    $stderr.reopen(logfile,'w')
+    $stdout.reopen(File.open(logfile,'a+'))
+    $stderr.reopen(File.open(logfile,'a+'))
   end
   get_from_database
 else
