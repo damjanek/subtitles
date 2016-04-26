@@ -124,14 +124,16 @@ class Subconv
   def tmplayer_converter(input)
     out_file = File.new(@output_file, "w")
     result = ''
-    line = IO.readlines(input,mode: 'r:binary')
+    line = IO.readlines(input, mode: 'r:binary')
     text = line[0]
     @start_time, out = text.match(/^(\d\d:\d\d:\d\d):(.*$)/i).captures
     out_next = ''
     IO.foreach(input,mode: 'r:binary').with_index do |text, line_number|
       @x = line_number
       stop_time = '00:00:00'
-      stop_time, out_next = text.match(/^(\d\d:\d\d:\d\d):(.*$)/i).captures
+      if text.match(/^(\d\d:\d\d:\d\d):(.*$)/i)
+        stop_time, out_next = $1, $2
+      end
       if line_number > 0
         start = @start_time.to_s + ',100'
         stop = stop_time.to_s + ',000'
