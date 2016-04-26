@@ -8,7 +8,7 @@ class Subconv
   def convert(input,fps,output_file)
     @frame = fps.to_f
     @output_file = output_file
-    lines = IO.readlines(input)
+    lines = IO.readlines(input, mode: 'r:binary')
     first = lines[0].to_s
     second = lines[1].to_s
     fourth = lines[3].to_s
@@ -58,7 +58,8 @@ class Subconv
   def microdvd_converter(input)
     out_file = File.new(@output_file, "w")
     count = 1
-    IO.foreach(input) do |text|
+    result = ''
+    IO.foreach(input, mode: 'r:binary') do |text|
       match = text.scan(/\{([0-9]*)\}/)
       start_time = match[0].to_s
       start_time = /(\d+)/.match(start_time).to_s
@@ -68,16 +69,18 @@ class Subconv
       stop = stop_time.to_f / @frame
       out = text.gsub("{#{start_time}}{#{stop_time}}", "" )
       out = out.gsub("|","\n")
-        texts = "#{count}\n#{time_convert(start)} --> #{time_convert(stop)}\n#{out}\n"
-        out_file.puts texts
+        result += "#{count}\n#{time_convert(start)} --> #{time_convert(stop)}\n#{out}\n"
         count += 1
     end
+    out_file.write(result)
+    out_file.close
   end
 
   def mpl2_converter(input)
-    out_file = File.new(@output_file, "w")
+    out_file = File.new(@output_file, 'wb')
     count = 1
-    IO.foreach(input) do |text|
+    result = ''
+    IO.foreach(input,mode: 'r:binary') do |text|
       match = text.scan(/\[([0-9]*)\]/)
       start_time = match[0].to_s
       start_time = /(\d+)/.match(start_time).to_s
@@ -88,17 +91,19 @@ class Subconv
       if start == stop
          stop = start + 50
       end
-      out = text.gsub("[#{start_time}][#{stop_time}]", "" )
+      out = text.gsub("[#{start_time}][#{stop_time}]", '')
       out = out.gsub("|","\n")
-        texts = "#{count}\n#{decy_2_time(start)} --> #{decy_2_time(stop)}\n#{out}\n"
-        out_file.puts texts
-        count += 1
+      result += "#{count}\n#{decy_2_time(start)} --> #{decy_2_time(stop)}\n#{out}\n"
+      count += 1
     end
+    out_file.write(result)
+    out_file.close
   end
 
   def subrip_converter(input)
-    out_file = File.new(@output_file, "w")
+    out_file = File.new(@output_file, 'wb')
     count = 1
+    result = ''
     pattern = '<>'
     input_file = File.read("#{input}")
     input_file = input_file.gsub(/\n{2,}/,"<>")
@@ -109,19 +114,21 @@ class Subconv
       start = start_time.to_s.gsub(".",",") + '0'
       stop = stop_time.to_s.gsub(".",",") + '0'
       out = out.to_s.gsub("<>","\n")
-      texts = "#{count}\n#{start} --> #{stop}\n#{out}\n\n"
-      out_file.puts texts
+      result += "#{count}\n#{start} --> #{stop}\n#{out}\n\n"
       count += 1
     end
+    out_file.write(result)
+    out_file.close
   end
 
   def tmplayer_converter(input)
     out_file = File.new(@output_file, "w")
-    line = IO.readlines(input)
+    result = ''
+    line = IO.readlines(input,mode: 'r:binary')
     text = line[0]
     @start_time, out = text.match(/^(\d\d:\d\d:\d\d):(.*$)/i).captures
     out_next = ''
-    IO.foreach(input).with_index do |text, line_number|
+    IO.foreach(input,mode: 'r:binary').with_index do |text, line_number|
       @x = line_number
       stop_time = '00:00:00'
       stop_time, out_next = text.match(/^(\d\d:\d\d:\d\d):(.*$)/i).captures
@@ -129,18 +136,18 @@ class Subconv
         start = @start_time.to_s + ',100'
         stop = stop_time.to_s + ',000'
         out = out.gsub("|","\n")
-        texts = "#{line_number}\n#{start} --> #{stop}\n#{out}\n\n"
-        out_file.puts texts
+        result += "#{line_number}\n#{start} --> #{stop}\n#{out}\n\n"
         @start_time = stop_time
-        if out_next.to_s != ""
+        if out_next.to_s != ''
           out = out_next
         end
       end
     end
     stop = '23:59:59,000'
     start = @start_time.to_s + ',100'
-    texts = "#{@x+1}\n#{start} --> #{stop}\n#{out}\n\n"
-    out_file.puts texts
+    result += "#{@x+1}\n#{start} --> #{stop}\n#{out}\n\n"
+    out_file.write(result)
+    out_file.close
   end
 
 end
