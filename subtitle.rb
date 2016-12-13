@@ -5,7 +5,7 @@ class Subtitle
   require_relative 'subconv'
 
   def initialize
-    ['ffmpeg'].each do |b|
+    ['mediainfo'].each do |b|
       required_bin(b)
     end
   end
@@ -55,7 +55,7 @@ class Subtitle
   end
 
   def framerate(video_file)
-    $1 if `ffmpeg -stats -i "#{video_file}" 2>&1 | grep Video` =~ /.*?([\d+\.]+)\s+fps.*/
+    $1 if `mediainfo "#{video_file}" 2>&1 | grep "Frame rate"` =~ /.*?([\d+\.]+)\s+fps.*/
   end
 
   def required_bin(bin)
