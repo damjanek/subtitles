@@ -26,5 +26,5 @@ feeder_bin_location: /home/username/subtitles/feed_sub_db.rb
 
 In case you want to disable subliminal part, add *disable_subliminal: true* and leave only *pl* in *languages*
 
-Additionally, you will need to install few tools: *ffmpeg* and *subliminal*.
+Additionally, you will need to install few tools: *mediainfo* and *subliminal*.
 Place those in your $PATH and you're good to go.
