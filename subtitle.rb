@@ -55,7 +55,7 @@ class Subtitle
   end
 
   def framerate(video_file)
-    $1 if `mediainfo "#{video_file}" 2>&1 | grep "Frame rate"` =~ /.*?([\d+\.]+)\s+fps.*/
+    $1 if `mediainfo "#{video_file}" 2>&1 | grep "Frame rate"` =~ /^Frame rate\s+:\s+([\d+\.]+)\s+.*fps/
   end
 
   def required_bin(bin)
